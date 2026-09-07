@@ -1,0 +1,41 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+
+# Certificates / keys
+*.pem
+*.key
+
+# Python cache
+.pytest_cache/
+.mypy_cache/
+
+# ML / generated files
+*.pkl
+*.joblib
+
+# Temporary files
+*.tmp
+*.temp
