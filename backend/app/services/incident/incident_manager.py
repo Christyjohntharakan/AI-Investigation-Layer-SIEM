@@ -179,10 +179,8 @@ def create_incident(events):
     }
 
     return incident
-
-
-
-    def create_incidents(correlated_events):
+    
+def create_incidents(correlated_events):
 
     incidents = []
 

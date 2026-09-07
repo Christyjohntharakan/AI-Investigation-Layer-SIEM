@@ -1,12 +1,17 @@
+import os
 import requests
 import urllib3
+from dotenv import load_dotenv
+
+load_dotenv()
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 OPENSEARCH_URL = "https://localhost:9200"
-USERNAME = "admin"
-PASSWORD = "SecretPassword"
+
+USERNAME = os.getenv("WAZUH_INDEXER_USERNAME")
+PASSWORD = os.getenv("WAZUH_INDEXER_PASSWORD")
 
 
 def fetch_logs(size=20):
