@@ -1020,3 +1020,133 @@ button {
   }
 
 }
+
+/* ------------------------------------------------ */
+/* ANOMALY DETECTION */
+/* ------------------------------------------------ */
+
+.anomaly-panel {
+  margin-top: 24px;
+}
+
+.anomaly-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.anomaly-summary-item {
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.anomaly-summary-item span {
+  display: block;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.55;
+  margin-bottom: 7px;
+}
+
+.anomaly-summary-item strong {
+  font-size: 24px;
+}
+
+.anomaly-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.anomaly-card {
+  padding: 18px;
+  border: 1px solid rgba(255, 90, 90, 0.18);
+  border-radius: 12px;
+  background: rgba(255, 90, 90, 0.025);
+}
+
+.anomaly-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.anomaly-label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  opacity: 0.55;
+}
+
+.anomaly-card h3 {
+  margin: 6px 0 0;
+  font-size: 16px;
+}
+
+.anomaly-score {
+  font-family: monospace;
+  font-size: 16px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.anomaly-details {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.anomaly-details span {
+  display: block;
+  font-size: 11px;
+  opacity: 0.5;
+  margin-bottom: 5px;
+}
+
+.anomaly-details strong {
+  font-size: 13px;
+}
+
+.anomaly-features {
+  margin-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding-top: 14px;
+}
+
+.anomaly-features summary {
+  cursor: pointer;
+  font-size: 13px;
+  opacity: 0.75;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.feature-item {
+  padding: 10px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.feature-item span {
+  display: block;
+  font-size: 10px;
+  text-transform: capitalize;
+  opacity: 0.5;
+}
+
+.feature-item strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+}

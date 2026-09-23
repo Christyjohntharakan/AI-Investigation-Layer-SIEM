@@ -20,9 +20,18 @@ import API from "../services/api";
 import "../styles/dashboard.css";
 
 export default function Dashboard() {
-  const [logs, setLogs] = useState([]);
-  const [incidents, setIncidents] = useState([]);
-  const [selectedIncident, setSelectedIncident] = useState(null);
+ const [logs, setLogs] = useState([]);
+ const [incidents, setIncidents] = useState([]);
+ const [anomalies, setAnomalies] = useState({
+  summary: {
+    behavioral_count: 0,
+    ml_anomalous_windows: 0,
+    ml_total_windows: 0,
+  },
+  behavioral_anomalies: [],
+  isolation_forest_anomalies: [],
+});
+const [selectedIncident, setSelectedIncident] = useState(null);
 
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -32,9 +41,14 @@ export default function Dashboard() {
 
   async function loadDashboard() {
     try {
-      const [logsResponse, incidentsResponse] = await Promise.all([
+      const [
+        logsResponse,
+        incidentsResponse,
+        anomaliesResponse,
+      ] = await Promise.all([
         API.get("/logs"),
         API.get("/incidents"),
+        API.get("/anomalies"),
       ]);
 
       const logData = Array.isArray(logsResponse.data)
@@ -47,6 +61,17 @@ export default function Dashboard() {
 
       setLogs(logData);
       setIncidents(incidentData);
+      setAnomalies(
+        anomaliesResponse.data || {
+          summary: {
+            behavioral_count: 0,
+            ml_anomalous_windows: 0,
+            ml_total_windows: 0,
+          },
+          behavioral_anomalies: [],
+          isolation_forest_anomalies: [],
+        }
+      );
       setConnected(true);
       setLastUpdated(new Date());
     } catch (error) {
@@ -95,6 +120,13 @@ export default function Dashboard() {
       getPriority(incident) === "low" ||
       getRisk(incident) < 40
   );
+
+  const mlAnomalies = (
+  anomalies.isolation_forest_anomalies || []
+).filter((item) => item.is_anomaly);
+
+  const behavioralAnomalies =
+  anomalies.behavioral_anomalies || [];
 
   const averageRisk =
     incidents.length > 0
@@ -205,6 +237,14 @@ export default function Dashboard() {
               {incidents.length}
             </span>
           </a>
+
+          <a className="nav-item" href="#anomalies">
+  <FaBrain />
+  Anomalies
+  <span className="nav-count">
+    {mlAnomalies.length}
+  </span>
+</a>
 
           <a className="nav-item" href="#mitre">
             <FaBug />
@@ -335,6 +375,22 @@ export default function Dashboard() {
             type="green"
           />
 
+          <StatCard
+          label="Behavioral Anomalies"
+          value={behavioralAnomalies.length}
+          description="Rule-based anomalies"
+          icon={<FaExclamationTriangle />}
+          type="red"
+          />
+          
+          <StatCard
+          label="ML Anomalies"
+          value={mlAnomalies.length}
+          description="Isolation Forest"
+          icon={<FaBrain />}
+          type="purple"
+          />
+
         </section>
 
         {/* ANALYTICS */}
@@ -418,6 +474,129 @@ export default function Dashboard() {
           </div>
 
         </section>
+
+        {/* ANOMALY DETECTION */}
+
+<section className="panel anomaly-panel" id="anomalies">
+
+  <PanelHeader
+    eyebrow="AI ANOMALY DETECTION"
+    title="Behavioral Anomalies"
+    count={`${mlAnomalies.length} ML detected`}
+  />
+
+  <div className="anomaly-summary">
+
+    <div className="anomaly-summary-item">
+      <span>Rule-Based</span>
+      <strong>{behavioralAnomalies.length}</strong>
+    </div>
+
+    <div className="anomaly-summary-item">
+      <span>ML Detected</span>
+      <strong>{mlAnomalies.length}</strong>
+    </div>
+
+    <div className="anomaly-summary-item">
+      <span>Windows Analyzed</span>
+      <strong>
+        {anomalies.summary?.ml_total_windows ?? 0}
+      </strong>
+    </div>
+
+  </div>
+
+  {mlAnomalies.length === 0 ? (
+
+    <Empty text="No ML anomalies detected." />
+
+  ) : (
+
+    <div className="anomaly-list">
+
+      {mlAnomalies.map((anomaly, index) => (
+
+        <div
+          className="anomaly-card"
+          key={index}
+        >
+
+          <div className="anomaly-card-header">
+
+            <div>
+              <span className="anomaly-label">
+                ISOLATION FOREST
+              </span>
+
+              <h3>
+                Behavioral anomaly detected
+              </h3>
+            </div>
+
+            <span className="anomaly-score">
+              {anomaly.decision_score}
+            </span>
+
+          </div>
+
+          <div className="anomaly-details">
+
+            <div>
+              <span>Events</span>
+              <strong>{anomaly.event_count}</strong>
+            </div>
+
+            <div>
+              <span>First Seen</span>
+              <strong>
+                {formatDate(anomaly.first_seen)}
+              </strong>
+            </div>
+
+            <div>
+              <span>Last Seen</span>
+              <strong>
+                {formatDate(anomaly.last_seen)}
+              </strong>
+            </div>
+
+          </div>
+
+          <details className="anomaly-features">
+
+            <summary>
+              View behavioral features
+            </summary>
+
+            <div className="feature-grid">
+
+              {Object.entries(
+                anomaly.features || {}
+              ).map(([name, value]) => (
+
+                <div
+                  className="feature-item"
+                  key={name}
+                >
+                  <span>{name.replaceAll("_", " ")}</span>
+                  <strong>{value}</strong>
+                </div>
+
+              ))}
+
+            </div>
+
+          </details>
+
+        </div>
+
+      ))}
+
+    </div>
+
+  )}
+
+</section>
 
         {/* INCIDENT MANAGEMENT */}
 

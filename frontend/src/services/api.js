@@ -5,4 +5,9 @@ const API = axios.create({
     timeout: 10000
 });
 
+export const getAnomalies = async () => {
+    const response = await API.get("/anomalies");
+    return response.data;
+};
+
 export default API;

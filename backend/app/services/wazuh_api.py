@@ -1,8 +1,14 @@
+import os
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 WAZUH_URL = "https://localhost:55000"
-USERNAME = "wazuh-wui"
-PASSWORD = "MyS3cr37P450r.*-"
+
+USERNAME = os.getenv("WAZUH_API_USERNAME")
+PASSWORD = os.getenv("WAZUH_API_PASSWORD")
 
 
 def get_token():
