@@ -39,3 +39,4 @@ frontend/dist/
 # Temporary files
 *.tmp
 *.temp
+wazuh-docker/
