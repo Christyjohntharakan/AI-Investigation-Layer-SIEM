@@ -2,6 +2,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.logs import router as log_router
+from app.api.anomalies import router as anomaly_router
+
+
 
 app = FastAPI(
     title="AI Investigation Intelligence Layer",
@@ -19,6 +22,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(anomaly_router)
 
 # Register API routes
 app.include_router(log_router)

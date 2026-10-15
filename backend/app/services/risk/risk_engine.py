@@ -15,12 +15,18 @@ EVENT_COUNT_BONUS = {
     3: 15,
     4: 20,
 }
-
 MITRE_TECHNIQUE_BONUS = 10
 MITRE_TACTIC_BONUS = 5
 ROOT_ACTIVITY_BONUS = 10
-REPEATED_RULE_BONUS = 10
 
+ASSET_CRITICALITY_BONUS = {
+    "low": 0,
+    "medium": 5,
+    "high": 10,
+    "critical": 15,
+}
+
+REPEATED_RULE_BONUS = 10
 
 # ============================================================
 # HELPER
@@ -225,9 +231,44 @@ def calculate_incident_risk(events):
             )
         })
 
+        # ========================================================
+    # 6. ASSET CRITICALITY
+    # ========================================================
+
+    asset_criticality = "medium"
+
+    for event in events:
+
+        criticality = event.get(
+            "asset_criticality"
+        )
+
+        if criticality in ASSET_CRITICALITY_BONUS:
+            asset_criticality = criticality
+            break
+
+    criticality_bonus = ASSET_CRITICALITY_BONUS.get(
+        asset_criticality,
+        5
+    )
+
+    if criticality_bonus > 0:
+
+        score += criticality_bonus
+
+        factors.append({
+            "factor": "Asset criticality",
+            "value": asset_criticality,
+            "contribution": criticality_bonus,
+            "reason": (
+                f"The affected asset is classified as "
+                f"{asset_criticality} criticality."
+            )
+        })
+
 
     # ========================================================
-    # 6. REPEATED RULE
+    # # 7. REPEATED RULE
     # ========================================================
 
     rule_ids = [

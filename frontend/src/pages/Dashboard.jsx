@@ -16,13 +16,32 @@ import {
   FaNetworkWired,
 } from "react-icons/fa";
 
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  Legend,
+} from "recharts";
+
+
 import API from "../services/api";
 import "../styles/dashboard.css";
 
 export default function Dashboard() {
-  const [logs, setLogs] = useState([]);
-  const [incidents, setIncidents] = useState([]);
-  const [selectedIncident, setSelectedIncident] = useState(null);
+ const [logs, setLogs] = useState([]);
+ const [incidents, setIncidents] = useState([]);
+ const [anomalies, setAnomalies] = useState({
+  summary: {
+    behavioral_count: 0,
+    ml_anomalous_windows: 0,
+    ml_total_windows: 0,
+  },
+  behavioral_anomalies: [],
+  isolation_forest_anomalies: [],
+});
+const [selectedIncident, setSelectedIncident] = useState(null);
 
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -32,9 +51,14 @@ export default function Dashboard() {
 
   async function loadDashboard() {
     try {
-      const [logsResponse, incidentsResponse] = await Promise.all([
+      const [
+        logsResponse,
+        incidentsResponse,
+        anomaliesResponse,
+      ] = await Promise.all([
         API.get("/logs"),
         API.get("/incidents"),
+        API.get("/anomalies"),
       ]);
 
       const logData = Array.isArray(logsResponse.data)
@@ -47,6 +71,17 @@ export default function Dashboard() {
 
       setLogs(logData);
       setIncidents(incidentData);
+      setAnomalies(
+        anomaliesResponse.data || {
+          summary: {
+            behavioral_count: 0,
+            ml_anomalous_windows: 0,
+            ml_total_windows: 0,
+          },
+          behavioral_anomalies: [],
+          isolation_forest_anomalies: [],
+        }
+      );
       setConnected(true);
       setLastUpdated(new Date());
     } catch (error) {
@@ -56,27 +91,47 @@ export default function Dashboard() {
       setLoading(false);
     }
   }
-
   useEffect(() => {
-    loadDashboard();
+    let isMounted = true;
+    let isFetching = false;
 
-    const interval = setInterval(loadDashboard, 5000);
+    const refreshDashboard = async () => {
+        if (!isMounted || isFetching) return;
 
-    return () => clearInterval(interval);
-  }, []);
+        isFetching = true;
+
+        try {
+            await loadDashboard();
+        } finally {
+            isFetching = false;
+        }
+    };
+
+    refreshDashboard();
+
+    const interval = setInterval(refreshDashboard, 15000);
+
+    return () => {
+        isMounted = false;
+        clearInterval(interval);
+    };
+}, []);
+
+
+  
 
   const getRisk = (incident) =>
+    incident?.risk?.score ??
     incident?.max_risk_score ??
     incident?.risk_score ??
-    incident?.risk?.maximum ??
     0;
 
   const getPriority = (incident) =>
-    (
-      incident?.priority ??
-      incident?.risk?.priority ??
-      "low"
-    ).toLowerCase();
+  (
+    incident?.risk?.priority ??
+    incident?.priority ??
+    "low"
+  ).toLowerCase();
 
   const highRisk = incidents.filter(
     (incident) => getPriority(incident) === "high" ||
@@ -95,6 +150,16 @@ export default function Dashboard() {
       getPriority(incident) === "low" ||
       getRisk(incident) < 40
   );
+
+
+
+
+  const mlAnomalies = (
+  anomalies.isolation_forest_anomalies || []
+).filter((item) => item.is_anomaly);
+
+  const behavioralAnomalies =
+  anomalies.behavioral_anomalies || [];
 
   const averageRisk =
     incidents.length > 0
@@ -168,6 +233,28 @@ export default function Dashboard() {
       text.includes(search.toLowerCase())
     );
   });
+  const severityData = [
+    {
+      name: "Critical",
+      value: incidents.filter((i) => getPriority(i) === "critical").length,
+      color: "#ff4d5e",
+    },
+    {
+      name: "High",
+      value: incidents.filter((i) => getPriority(i) === "high").length,
+      color: "#ff963d",
+    },
+    {
+      name: "Medium",
+      value: incidents.filter((i) => getPriority(i) === "medium").length,
+      color: "#f2ca52",
+    },
+    {
+      name: "Low",
+      value: incidents.filter((i) => getPriority(i) === "low").length,
+      color: "#43c995",
+    },
+  ];
 
   function openIncident(incident) {
     setSelectedIncident(incident);
@@ -176,8 +263,8 @@ export default function Dashboard() {
   return (
     <div className="soc-shell">
 
-      {/* SIDEBAR */}
-
+     
+{/* SIDEBAR */}
       <aside className="soc-sidebar">
 
         <div className="brand">
@@ -191,8 +278,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <nav>
-
+    <nav>
           <a className="nav-item active" href="#overview">
             <FaShieldAlt />
             Dashboard
@@ -205,6 +291,14 @@ export default function Dashboard() {
               {incidents.length}
             </span>
           </a>
+
+          <a className="nav-item" href="#anomalies">
+  <FaBrain />
+  Anomalies
+  <span className="nav-count">
+    {mlAnomalies.length}
+  </span>
+</a>
 
           <a className="nav-item" href="#mitre">
             <FaBug />
@@ -239,7 +333,6 @@ export default function Dashboard() {
             Settings
           </a>
         </div>
-
       </aside>
 
       {/* MAIN */}
@@ -335,6 +428,22 @@ export default function Dashboard() {
             type="green"
           />
 
+          <StatCard
+          label="Behavioral Anomalies"
+          value={behavioralAnomalies.length}
+          description="Rule-based anomalies"
+          icon={<FaExclamationTriangle />}
+          type="red"
+          />
+          
+          <StatCard
+          label="ML Anomalies"
+          value={mlAnomalies.length}
+          description="Isolation Forest"
+          icon={<FaBrain />}
+          type="purple"
+          />
+
         </section>
 
         {/* ANALYTICS */}
@@ -343,39 +452,77 @@ export default function Dashboard() {
 
           <div className="panel risk-panel">
 
-            <PanelHeader
-              eyebrow="RISK ANALYTICS"
-              title="Incident Risk"
-              count={incidents.length}
-            />
 
-            <RiskBar
-              label="High"
-              count={highRisk.length}
-              total={incidents.length}
-              type="high"
-            />
+<PanelHeader
+  eyebrow="RISK ANALYTICS"
+  title="Incident Risk"
+  count={incidents.length}
+/>
 
-            <RiskBar
-              label="Medium"
-              count={mediumRisk.length}
-              total={incidents.length}
-              type="medium"
-            />
+<div className="risk-analytics-content">
+  <div className="risk-breakdown">
+    <RiskBar
+      label="High"
+      count={highRisk.length}
+      total={incidents.length}
+      type="high"
+    />
 
-            <RiskBar
-              label="Low"
-              count={lowRisk.length}
-              total={incidents.length}
-              type="low"
-            />
+    <RiskBar
+      label="Medium"
+      count={mediumRisk.length}
+      total={incidents.length}
+      type="medium"
+    />
 
-            <div className="risk-footer">
-              <span>Average incident risk</span>
-              <strong>{averageRisk}/100</strong>
-            </div>
+    <RiskBar
+      label="Low"
+      count={lowRisk.length}
+      total={incidents.length}
+      type="low"
+    />
 
-          </div>
+    <div className="risk-footer">
+      <span>Average incident risk</span>
+      <strong>{averageRisk}/100</strong>
+    </div>
+  </div>
+
+  <div
+    className={`risk-gauge ${
+      averageRisk >= 80
+        ? "risk-gauge-critical"
+        : averageRisk >= 60
+        ? "risk-gauge-high"
+        : averageRisk >= 40
+        ? "risk-gauge-medium"
+        : "risk-gauge-low"
+    }`}
+    style={{
+      "--risk": Math.max(
+        0,
+        Math.min(100, Number(averageRisk) || 0)
+      )
+    }}
+    role="img"
+    aria-label={`Average incident risk ${averageRisk} out of 100`}
+  >
+    <div className="risk-gauge-content">
+      <strong className="risk-gauge-value">
+        {Math.round(Number(averageRisk) || 0)}
+      </strong>
+      <span className="risk-gauge-label">/ 100 Risk</span>
+    </div>
+  </div>
+</div>
+
+<div className="severity-legend">
+  <span><i className="legend-dot legend-high" /> High</span>
+  <span><i className="legend-dot legend-medium" /> Medium</span>
+  <span><i className="legend-dot legend-low" /> Low</span>
+</div>
+</div>
+
 
           <div
             className="panel"
@@ -418,6 +565,307 @@ export default function Dashboard() {
           </div>
 
         </section>
+
+        {/* INCIDENT SEVERITY CHART */}
+        <section className="panel severity-chart-panel">
+          <PanelHeader
+            eyebrow="THREAT DISTRIBUTION"
+            title="Incident Severity Breakdown"
+            count={`${incidents.length} incidents`}
+          />
+
+          <div className="severity-chart-layout">
+            <div className="severity-donut">
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <Pie
+                    data={severityData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={75}
+                    outerRadius={105}
+                    paddingAngle={4}
+                    stroke="none"
+                  >
+                    {severityData.map((entry) => (
+                      <Cell key={entry.name} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  
+                  <Tooltip
+                    formatter={(value, name) => [
+                      `${value} incidents`,
+                      name,
+                    ]}
+                    contentStyle={{
+                      backgroundColor: "#111c28",
+                      border: "1px solid #34495e",
+                      borderRadius: "8px",
+                      color: "#ffffff",
+                      padding: "10px 14px",
+                    }}
+                    itemStyle={{ color: "#ffffff" }}
+                    labelStyle={{ color: "#9fb0c4" }}
+                    wrapperStyle={{ zIndex: 10, pointerEvents: "none" }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+
+              <div className="severity-donut-center">
+                <strong>{incidents.length}</strong>
+                <span>Total incidents</span>
+              </div>
+            </div>
+
+            <div className="severity-chart-legend">
+              {severityData.map((item) => (
+                <div className="severity-chart-item" key={item.name}>
+                  <span
+                    className="severity-chart-dot"
+                    style={{ background: item.color }}
+                  />
+                  <span>{item.name}</span>
+                  <strong>{item.value}</strong>
+                  <small>
+                    {incidents.length
+                      ? `${((item.value / incidents.length) * 100).toFixed(1)}%`
+                      : "0%"}
+                  </small>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ANOMALY DETECTION */}
+
+<section className="panel anomaly-panel" id="anomalies">
+
+  <PanelHeader
+    eyebrow="AI ANOMALY DETECTION"
+    title="Behavioral Anomalies"
+    count={`${mlAnomalies.length} ML detected`}
+  />
+
+  <div className="anomaly-summary">
+
+    <div className="anomaly-summary-item">
+      <span>Rule-Based</span>
+      <strong>{behavioralAnomalies.length}</strong>
+    </div>
+
+    <div className="anomaly-summary-item">
+      <span>ML Detected</span>
+      <strong>{mlAnomalies.length}</strong>
+    </div>
+
+    <div className="anomaly-summary-item">
+      <span>Windows Analyzed</span>
+      <strong>
+        {anomalies.summary?.ml_total_windows ?? 0}
+      </strong>
+    </div>
+
+  </div>
+
+  {mlAnomalies.length === 0 ? (
+
+    <Empty text="No ML anomalies detected." />
+
+  ) : (
+
+    <div className="anomaly-list">
+
+      {mlAnomalies.map((anomaly, index) => (
+
+        <div
+          className="anomaly-card"
+          key={index}
+        >
+
+          <div className="anomaly-card-header">
+
+            <div>
+              <span className="anomaly-label">
+                ISOLATION FOREST
+              </span>
+
+              <h3>
+                Behavioral anomaly detected
+              </h3>
+            </div>
+
+            <span className="anomaly-score">
+              {anomaly.decision_score}
+            </span>
+
+          </div>
+
+          <div className="anomaly-details">
+
+            <div>
+              <span>Events</span>
+              <strong>{anomaly.event_count}</strong>
+            </div>
+
+            <div>
+              <span>First Seen</span>
+              <strong>
+                {formatDate(anomaly.first_seen)}
+              </strong>
+            </div>
+
+            <div>
+              <span>Last Seen</span>
+              <strong>
+                {formatDate(anomaly.last_seen)}
+              </strong>
+            </div>
+
+          </div>
+
+          <details className="anomaly-features">
+
+            <summary>
+              View behavioral features
+            </summary>
+
+            <div className="feature-grid">
+
+              {Object.entries(
+                anomaly.features || {}
+              ).map(([name, value]) => (
+
+                <div
+                  className="feature-item"
+                  key={name}
+                >
+                  <span>{name.replaceAll("_", " ")}</span>
+                  <strong>{value}</strong>
+                </div>
+
+              ))}
+
+            </div>
+
+          </details>
+
+          {/* SHAP EXPLANATION: Show which features influenced the ML score. */}
+          <details className="anomaly-features shap-explanation">
+
+            <summary>
+              View SHAP explanation
+            </summary>
+
+            {anomaly.shap_explanation?.available ? (
+
+              <>
+                <p className="risk-summary">
+                  {anomaly.shap_explanation.note}
+                </p>
+                                {/* KEY FINDING: Summarize the strongest features lowering the Isolation Forest score. */}
+                <div className="risk-summary">
+                  <strong>Key Finding</strong>
+
+                  {(() => {
+                    // Select the three strongest negative SHAP contributions.
+                    const topContributors = (
+                      anomaly.shap_explanation.feature_contributions || []
+                    )
+                      .filter((item) => Number(item.shap_value) < 0)
+                      .sort((a, b) => a.shap_value - b.shap_value)
+                      .slice(0, 3);
+
+                    // Convert feature names into readable text for the analyst.
+                    const featureNames = topContributors.map((item) =>
+                      item.feature.replaceAll("_", " ")
+                    );
+
+                    // Avoid making a claim when no negative contributions exist.
+                    if (featureNames.length === 0) {
+                      return (
+                        <p>
+                          No features lowering the model score were identified
+                          in the available SHAP results.
+                        </p>
+                      );
+                    }
+
+                    // Explain the model finding without claiming that an attack is confirmed.
+                    return (
+                      <p>
+                        The strongest features lowering the model score are{" "}
+                        {featureNames.join(", ")}. These contributions help
+                        explain why the activity was flagged as anomalous;
+                        they do not independently confirm an attack.
+                      </p>
+                    );
+                  })()}
+                </div>
+
+                <div className="feature-grid">
+
+                  {(anomaly.shap_explanation.feature_contributions || [])
+                    .slice(0, 5)
+                    .map((item) => (
+
+                      <div
+                        className="feature-item"
+                        key={item.feature}
+                      >
+
+                        <span>
+                          {item.feature.replaceAll("_", " ")}
+                        </span>
+
+                        <strong>
+                          {item.value}
+                        </strong>
+
+                        <small>
+                          SHAP: {item.shap_value > 0 ? "+" : ""}
+                          {item.shap_value}
+                          {" · "}
+                          {item.direction === "lowers_score"
+                            ? "Lowers model score"
+                            : item.direction === "raises_score"
+                            ? "Raises model score"
+                            : "Neutral"}
+                        </small>
+
+                      </div>
+
+                    ))}
+
+                </div>
+
+                <small>
+                  Baseline model score:{" "}
+                  {Number(anomaly.shap_explanation.base_value).toFixed(4)}
+                </small>
+              </>
+
+            ) : (
+
+              <p>
+                SHAP explanation is unavailable for this window.
+              </p>
+
+            )}
+
+          </details>
+
+        </div>
+
+      ))}
+
+    </div>
+
+  )}
+
+</section>
 
         {/* INCIDENT MANAGEMENT */}
 
@@ -496,15 +944,26 @@ export default function Dashboard() {
                     }
                   >
 
-                    <div>
-                      <strong>
-                        {incident.incident_id}
-                      </strong>
+                    
+<div className="incident-identity">
+  <strong>
+    {incident.incident_id}
+  </strong>
 
-                      <small>
-                        {incident.category || "security"}
-                      </small>
-                    </div>
+  <small>
+    {incident.category || "security"}
+  </small>
+
+  <small className="incident-received-time">
+    Received:{" "}
+    {formatDate(
+      incident.first_seen ||
+      incident.last_seen ||
+      incident.timestamp
+    )}
+  </small>
+</div>
+x
 
                     <div>
                       {incident.agent_name || "—"}
@@ -715,7 +1174,7 @@ export default function Dashboard() {
                 <Detail
                   label="Agent"
                   value={
-                    selectedIncident.agent_name || "—"
+                    (selectedIncident.agents || []).join(", ") || "—"
                   }
                 />
 
@@ -772,23 +1231,20 @@ export default function Dashboard() {
               <h3>
                 Risk Explanation
               </h3>
-
-              <p className="risk-summary">
-                {
-                  selectedIncident
-                    .risk_explanation
-                    ?.summary ||
-                  selectedIncident.summary ||
-                  "No explanation available."
-                }
-              </p>
+<p className="risk-summary">
+  {selectedIncident.risk?.explanation?.summary ||
+   selectedIncident.explainability?.assessment ||
+   selectedIncident.risk_explanation?.summary ||
+   selectedIncident.risk_explanation ||
+   selectedIncident.summary ||
+   "Risk explanation is not available for this incident."}
+</p>
 
               <div className="factor-list">
 
                 {(
-                  selectedIncident
-                    .risk_explanation
-                    ?.factors || []
+                  selectedIncident.risk?.explanation?.factors ||
+                  selectedIncident.explainability?.contributing_factors ||[]
                 ).map((factor, index) => (
                   <div
                     className="factor"
@@ -823,7 +1279,7 @@ export default function Dashboard() {
 
               <div className="timeline">
 
-                {(selectedIncident.events || []).map(
+                {(selectedIncident.timeline || selectedIncident.events || []).map(
                   (event, index) => (
                     <div
                       className="timeline-item"
@@ -834,9 +1290,7 @@ export default function Dashboard() {
 
                       <div>
                         <strong>
-                          {event.rule_description ||
-                            event.rule_id ||
-                            "Security event"}
+                          {event.description || event.event_type || "Security event"}
                         </strong>
 
                         <small>
@@ -848,7 +1302,9 @@ export default function Dashboard() {
                         <p>
                           Risk {event.risk_score ?? 0}
                           {" · "}
-                          {event.category || "security"}
+                          {event.event_type || "security"}
+                          {" · "}
+                          {event.user || "unknown user"}
                         </p>
                       </div>
 
@@ -859,6 +1315,73 @@ export default function Dashboard() {
               </div>
 
             </div>
+            <div className="drawer-section">
+              <h3>Investigation Memory</h3>
+              {(selectedIncident.investigation_memory?.similar_incidents || []).length > 0 ? (
+                <div className="factor-list">
+                  {selectedIncident.investigation_memory.similar_incidents.map((match, index) => (
+                    <div className="factor" key={`${match.incident_id}-${index}`}>
+                      <div>
+                        <strong>{match.incident_id}</strong>
+                        <small>
+                          Similarity: {((match.similarity_score || 0) * 100).toFixed(1)}%
+                          {" · "}Priority: {match.priority || "unknown"}
+                        </small>
+                        <small>{match.summary || "Historical incident match"}</small>
+                      </div>
+                      <b>{match.risk_score ?? 0}</b>
+                    </div>
+                  ))}
+               </div>
+             ) : (
+               <p>No similar historical incidents found.</p>
+            )}
+          </div>
+
+          <div className="drawer-section">
+            <h3>Decision Intelligence</h3>
+            
+            <p className="risk-summary">
+              {selectedIncident.explainability?.assessment ||
+              "Review the incident evidence and risk indicators."}
+            </p>
+            <h4>Investigation Focus</h4>
+            <ul>
+              {(selectedIncident.decision_intelligence?.investigation_focus || []).map(
+                (item, index) => <li key={index}>{item}</li>
+                )}
+            </ul>
+            <h4>Decision Rationale</h4>
+            <ul>
+    {(selectedIncident.decision_intelligence?.rationale || []).map(
+      (item, index) => <li key={index}>{item}</li>
+    )}
+  </ul>
+</div>
+
+<div className="drawer-section">
+  <h3>Recommended Actions</h3>
+
+  {(selectedIncident.recommendations?.recommendations || []).length > 0 ? (
+    <div className="factor-list">
+      {selectedIncident.recommendations.recommendations.map((item, index) => (
+        <div className="factor" key={index}>
+          <div>
+            <strong>{item.action || "Investigate incident"}</strong>
+            <small>{item.reason || "Review the associated evidence."}</small>
+          </div>
+        </div>
+      ))}
+    </div>
+  ) : (
+    <p>No recommendations available.</p>
+  )}
+
+  <small>
+    Automated response:{" "}
+    {selectedIncident.recommendations?.automated_response ? "Enabled" : "Not enabled"}
+  </small>
+</div>
 
           </aside>
 
