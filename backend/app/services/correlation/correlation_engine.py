@@ -584,20 +584,14 @@ def build_incident(cluster):
 
 # =========================================================
 # CORRELATE EVENTS
-# =========================================================
-
-def correlate_events(events):
+# ======================================================
+def correlate_event_clusters(events):
     """
-    Group related security events into incidents.
+    Group related security events into raw incident clusters.
 
-    Uses connected-component style clustering.
-
-    Example:
-
-        Event A -> Event B -> Event C
-
-    remains one incident even when A and C
-    are not directly related.
+    The correlation engine is responsible only for identifying
+    related events. Incident construction is handled by the
+    Incident Manager.
     """
 
     incidents = []
@@ -656,20 +650,28 @@ def correlate_events(events):
 
         incidents.append(cluster)
 
-    # -----------------------------------------------------
-    # BUILD INCIDENT OBJECTS
-    # -----------------------------------------------------
+    return incidents
+
+
+def correlate_events(events):
+    """
+    Backward-compatible correlation function.
+
+    Groups related events and builds the existing
+    correlation-engine incident representation.
+    """
+
+    clusters = correlate_event_clusters(events)
 
     incident_objects = []
 
-    for cluster in incidents:
+    for cluster in clusters:
 
         incident = build_incident(
             cluster
         )
 
         if incident:
-
             incident_objects.append(
                 incident
             )

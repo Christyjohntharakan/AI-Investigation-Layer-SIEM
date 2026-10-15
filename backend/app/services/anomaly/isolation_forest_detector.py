@@ -28,6 +28,7 @@ class IsolationForestDetector:
         "max_severity",
         "rule_group_diversity",
         "package_config_events",
+        "vulnerability_events",
     ]
 
     def __init__(
@@ -55,6 +56,7 @@ class IsolationForestDetector:
         except (ValueError, TypeError):
             return datetime.min
 
+    
     def _build_windows(
         self,
         events: List[Dict[str, Any]],
@@ -67,33 +69,25 @@ class IsolationForestDetector:
 
         valid_events.sort(key=self._parse_time)
 
-        if not valid_events:
-            return []
-
-        windows = []
-        current_window = []
-        window_start = self._parse_time(valid_events[0])
-        window_end = window_start + timedelta(minutes=WINDOW_MINUTES)
+        windows_by_start = {}
 
         for event in valid_events:
             event_time = self._parse_time(event)
 
-            if event_time < window_end:
-                current_window.append(event)
-            else:
-                if current_window:
-                    windows.append(current_window)
+            # Align each event to its fixed five-minute clock interval.
+            minute = (event_time.minute // WINDOW_MINUTES) * WINDOW_MINUTES
+            window_start = event_time.replace(
+                minute=minute,
+                second=0,
+                microsecond=0,
+            )
 
-                current_window = [event]
-                window_start = event_time
-                window_end = window_start + timedelta(
-                    minutes=WINDOW_MINUTES
-                )
+            windows_by_start.setdefault(window_start, []).append(event)
 
-        if current_window:
-            windows.append(current_window)
-
-        return windows
+        return [
+            windows_by_start[start]
+            for start in sorted(windows_by_start)
+        ]
 
     def _extract_features(
         self,
@@ -109,6 +103,7 @@ class IsolationForestDetector:
         file_changes = 0
         security_events = 0
         package_config_events = 0
+        vulnerability_events = 0
 
         users = set()
         severities = []
@@ -151,6 +146,9 @@ class IsolationForestDetector:
             if "apparmor" in groups or "sca" in groups:
                 security_events += 1
 
+            if "vulnerability-detector" in groups:
+                vulnerability_events += 1
+
             if (
                 "dpkg" in groups
                 or "config_changed" in groups
@@ -162,6 +160,7 @@ class IsolationForestDetector:
             if severities
             else 0.0
         )
+        
 
         max_severity = max(severities) if severities else 0.0
 
@@ -177,6 +176,7 @@ class IsolationForestDetector:
             max_severity,
             float(len(rule_groups)),
             float(package_config_events),
+            float(vulnerability_events),
         ]
 
     def build_features(

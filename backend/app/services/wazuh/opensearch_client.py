@@ -8,7 +8,7 @@ load_dotenv()
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
-OPENSEARCH_URL = "https://localhost:9200"
+OPENSEARCH_URL = "https://127.0.0.1:9200"
 
 USERNAME = os.getenv("WAZUH_INDEXER_USERNAME")
 PASSWORD = os.getenv("WAZUH_INDEXER_PASSWORD")
